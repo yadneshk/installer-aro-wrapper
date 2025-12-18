@@ -66,26 +66,42 @@ regions=(
 "westeurope"
 )
 PS3="Select your Region please: "
-select region in "${regions[@]}" Quit
+select region in "All" "${regions[@]}" Quit
 do
-    LOCATION=$region
+    case $region in
+      "All")
+        selected_regions=("${regions[@]}")
+        ;;
+      "Quit")
+        exit 0
+        ;;
+      *)
+        selected_regions=("$region")
+        ;;
+    esac
     break;
 done
 
-tmux start-server
-tmux new-session -d -n $LOCATION -s $LOCATION
-tmux select-pane -T 1
-
-for (( i=1; i<$CONCURRENCY; i++ ))
+for LOCATION in "${selected_regions[@]}"
 do
-  tmux split-window -h
-  tmux select-pane -T $i
-done
-tmux select-layout even-horizontal
+  # create tmux session for each location
+  tmux start-server
+  tmux new-session -d -n $LOCATION -s $LOCATION
+  
+  # create panes for each concurrency
+  for (( i=1; i<$CONCURRENCY; i++ ))
+  do
+    tmux split-window -h
+  done
 
-for (( i=0; i<$CONCURRENCY; i++ ))
-do
-  tmux send-keys -t $i "LOCATION=$LOCATION CLUSTER=$CLUSTER-$LOCATION-$i RESOURCEGROUP=$RESOURCEGROUP-$LOCATION-$i VERSION=$VERSION $COMMAND" Enter
+  tmux select-layout even-horizontal 
+
+  for (( i=0; i<$CONCURRENCY; i++ ))
+  do
+    tmux select-pane -t $i -T $i
+    tmux send-keys -t $i "LOCATION=$LOCATION CLUSTER=$CLUSTER-$LOCATION-$i RESOURCEGROUP=$RESOURCEGROUP-$LOCATION-$i VERSION=$VERSION $COMMAND" Enter
+  done
 done
 
-tmux attach-session -t $LOCATION
+# list all tmux sessions
+tmux ls
